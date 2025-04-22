@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "cizimy-grid"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9" # Referenceでは3.x系とあるため、一般的な3.9以上を指定
+flet = "^0.21.0" # バージョンは適宜調整
+neo4j = "^5.19.0" # バージョンは適宜調整
+pydantic = "^2.7.0" # バージョンは適宜調整
+pydantic-settings = "^2.2.0" # バージョンは適宜調整
+toml = "^0.10.2" # バージョンは適宜調整
+structlog = "^24.1.0" # バージョンは適宜調整
+pillow = "^10.3.0" # バージョンは適宜調整
+requests = "^2.31.0" # バージョンは適宜調整
+uuid6 = "^2023.11.2" # バージョンは適宜調整
+python-dotenv = "^1.0.0" # バージョンは適宜調整
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

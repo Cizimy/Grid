@@ -1,0 +1,28 @@
+# Ignore sensitive information
+.env
+
+# Ignore generated data and logs
+data/
+logs/
+
+# Ignore Python virtual environments
+.venv/
+venv/
+__pypackages__/
+
+# Ignore Python cache and build artifacts
+*.pyc
+__pycache__/
+build/
+dist/
+*.egg-info/
+
+# Ignore editor/IDE specific files
+.vscode/
+.idea/
+
+# Ignore operating system files
+.DS_Store
+Thumbs.db
+# Ignore tool-specific directories
+.roo/

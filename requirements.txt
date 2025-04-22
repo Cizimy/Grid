@@ -1,0 +1,10 @@
+flet
+neo4j
+pydantic
+pydantic-settings
+toml
+structlog
+pillow
+requests
+python-dotenv
+uuid6
