@@ -1,77 +1,64 @@
-# Grid Project
+# Grid Project (開発中 - WIP)
 
-This is the repository for the Grid application, a tool to assist with NovelAI Vibe Transfer optimization.
+## 概要
 
-## Development Environment Setup
+NovelAI Diffusionでの画像生成における試行錯誤の記録、管理、分析を支援するためのデスクトップアプリケーションです。
 
-This project uses Docker Compose for the Neo4j database and `pip` with `requirements.txt` for Python dependency management.
+**【注意】**
+**本アプリケーションは開発中の未完成品です。** 多くの機能が未実装または不安定であり、不具合を含む可能性があります。あくまでコンセプトを示すものとしてご理解ください。
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository_url>
-    cd cizimy-grid
-    ```
+## 目的と特徴
 
-2.  **Set up the Neo4j Database:**
-    Ensure Docker is installed and running. Navigate to the project root directory (`cizimy-grid`) and run the following command to start the Neo4j container in the background:
-    ```bash
-    docker compose -f docker/docker-compose.yml up -d
-    ```
-    The database will be initialized with basic constraints and a default user on first startup based on the `docker/init/init.cypher` script.
+NovelAI Diffusionでは、ポーション画像・プロンプト・パラメータなどの**「組み合わせ」**が生成結果を大きく左右しますが、これらの管理や最適な設定の探索は煩雑になりがちです。Gridは、以下の機能を提供し、試行錯誤のプロセス全体を支援します。
 
-3.  **Install Python Dependencies:**
-    Ensure Python 3.9+ and `pip` are installed. Navigate to the project root directory (`cizimy-grid`) and install the required libraries using `pip`:
-    ```bash
-    pip install -r requirements.txt
-    ```
+1.  **再利用可能なリソースライブラリ:**
+    * 頻繁に利用する**ポーション画像、プロンプトテンプレート、パラメータセット**を「ライブラリ」として登録・管理できます。
+    * 各種リソースを一元管理することで、設定入力・記録の手間を省きます。結果として、試行錯誤のプロセスにより集中しやすくなります。
+    * ライブラリ内での検索機能を通じて、目的のリソースを効率的に探し出すことが可能です。
 
-4.  **Configure API Keys and Settings:**
-    Copy the `.env.example` file (if provided later) or manually create a `.env` file in the project root. Add your NovelAI API key and any other necessary credentials. **Do not commit `.env` to Git.**
-    ```dotenv
-    # .env
-    NOVELAI_API_KEY="your_novelai_api_key_here"
-    # Add other sensitive settings here
-    ```
-    Review `config.toml` and `grid/config.py` for other application settings and adjust paths if necessary.
+2.  **試行錯誤の記録とパラメータ探索支援:**
+    * 画像を生成する際に、**特定のパラメータ（例: プロンプトガイダンス, 参照強度）を段階的に変化させる、「パラメータ変化と出力結果の関連調査」を支援する機能**を計画しています。(**将来構想**)
+    * どのようなパラメータ変化の「組み合わせ」で画像を生成し、出力結果をどう評価したかを一連の「セッション」として記録します。
+    * パラメータを変化させて生成した複数の画像を**比較検討しやすい形式で表示**することで、パラメータが出力結果に与える影響を**直感的に把握**し、**最適な設定範囲の探索・発見**を支援します。
 
-5.  **Run the Application:**
-    (Instructions to run the application will be added later)
+3.  **「関連性」の活用による知見獲得 (グラフデータベース):**
+    * 記録されたセッションデータ、ライブラリのリソース、パラメータ探索の結果、評価などの情報間の**関連性**を **Neo4j (グラフデータベース)** を用いて保持・管理します。
+        * 例：「このポーション画像に対して、効果的だったパラメータの範囲は？」
+        * 例：「あのプロンプトテンプレートは、どのパラメータセットと組み合わせたら評価が高まるのか？」
+        * 例：「パラメータAを変化させた時、パラメータBとの間にどのような相互作用が見られたか？」
+    * データ間の**関連性を辿りやすくし、可視化・分析を支援する**ことで、設定の再現や流用だけでなく、**新たな発見や改善に繋がる知見**を得ることを目指します。
 
-## Project Structure
+4.  **Eagle連携による効率的な管理:**
+    * 生成・評価した結果を画像管理ツールEagleへ効率的に転送する機能を提供します。例えば、Grid内で付与した**レーティング（評価）**や、使用した**パラメータ・プロンプトに基づいた検索用タグ**といったメタデータを自動付与することで、Eagle上での整理や検索を容易にします。
 
-```
-cizimy-grid/
-├── .env                    # APIキーなど (Git管理外)
-├── .gitignore              # Git管理対象外設定
-├── config.toml             # アプリケーション設定ファイル
-├── docker-compose.yml      # Neo4j Docker Compose configuration
-├── docker/
-│   └── init/
-│       └── init.cypher     # Neo4j initialization script
-├── grid/                   # Main source code package
-│   ├── __init__.py
-│   ├── main.py             # Application entry point
-│   ├── config.py           # Settings loading (Pydantic models)
-│   ├── core/               # Business logic, service layer
-│   │   ├── api/            # External API clients (NovelAI, Eagle)
-│   │   ├── db/             # Database repositories (Neo4j operations)
-│   │   ├── models/         # Data models (Pydantic etc.)
-│   │   └── services/       # Core logic for features
-│   ├── ui/                 # Flet UI code
-│   │   ├── views/          # Screens (windows, tabs, panes)
-│   │   └── controls/       # Custom UI controls (if any)
-│   └── utils/              # Utility functions etc.
-│       └── logger.py       # structlog configuration
-├── data/                   # (Git ignored) Generated data storage
-│   ├── encoded/            # Encoded Vibe data
-│   ├── generated/          # Generated images
-│   └── vibe/               # Source Vibe images (if copied)
-├── logs/                   # (Git ignored) Log files
-├── tests/                  # Test code
-├── pyproject.toml          # (Optional) Poetry/PDM configuration (not used for dependency install in current setup)
-└── README.md               # Project description, setup instructions
-```
+## 対象ユーザー
 
-## License
+* NovelAI Diffusionで最適な設定や表現を追求する方。
+* 生成設定（ポーション, プロンプト, パラメータ）と結果の関係性を記録、分析、再利用したい方。
+* パラメータの影響を効率的に比較検討したい方。
+* 画像生成ワークフロー全体の効率化を図りたい方。
 
-(License information will be added later)
+## 現在の状況 (WIP)
+
+開発初期段階であり、機能は限定的かつ不安定です。特にパラメータ探索支援機能や高度な関連性分析機能は将来的な実装項目です。
+
+## 今後の展望 (計画)
+
+* コア機能 (ライブラリ管理、基本セッション記録、評価、Eagle連携) の安定化（MVP）
+* パラメータ探索支援機能の実装
+* 関連性分析・可視化機能の拡充
+* 他のNovelAI API機能への対応
+
+## 使用技術
+
+* Python, Flet (GUI), Neo4j (データベース)
+
+## ライセンス
+
+MITライセンス (予定、無保証)
+
+---
+
+**注意:** 開発中の個人プロジェクトであり、仕様は変更される可能性があります。フィードバックは歓迎しますが、迅速な対応は困難な場合があります。
+
+---

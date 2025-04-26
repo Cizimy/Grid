@@ -1,0 +1,27 @@
+# config.toml
+[app]
+default_ai_model = "nai-diffusion-4-full" # デフォルトで使用するAIモデル
+
+[api]
+eagle_api_host = "http://localhost:41595" # Eagle APIのホスト
+
+
+
+[database]
+neo4j_uri = "neo4j://localhost:7687" # Neo4j Bolt URI
+
+
+
+[paths]
+# データ保存先のベースディレクトリ (必要に応じて絶対パスに変更)
+data_base_dir = "./data"
+# 各データタイプのサブディレクトリ名 (シャーディングはコード側で処理)
+vibe_image_dir = "vibe"
+encoded_vibe_dir = "encoded"
+generated_image_dir = "generated"
+
+[logging]
+log_level = "INFO" # ログレベル (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+log_file_path = "./logs/nvt_ws.log" # ログファイルパス
+log_rotation = "daily" # ログローテーション (daily, weekly, etc. or size)
+log_retention = "7 days" # ログ保持期間 (例)
