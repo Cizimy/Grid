@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime
 import json
 import time # Add time module for potential delays
+from PIL import Image # Import Image from Pillow
 
 # Add the parent directory to the sys.path to import modules from grid package
 # Assuming the script is run from cizimy-grid directory
@@ -93,7 +94,7 @@ def main():
 
     novelai_client = None
     neo4j_repo = None
-    generated_images = [] # Initialize generated_images list outside try block
+    all_generated_images = [] # Use a new list to collect all generated images
     try:
         # Initialize clients and repository
         novelai_client = NovelAIClient(api_key=novelai_api_key)
@@ -125,8 +126,8 @@ def main():
             "scale": 7,
             "sampler": "k_euler_ancestral",
             "steps": 28,
-            "n_samples": 1, # Generate 1 image for the test
-            "seed": 12345, # Use a fixed seed for reproducibility
+            "n_samples": 1, # Generate 1 image per request
+            "seed": int(time.time()), # Use current timestamp as base seed
             "ucPreset": 0,
             "qualityToggle": False,
             "autoSmea": False,
@@ -164,29 +165,37 @@ def main():
         )
 
         print(f"\nStarting image generation for session: {test_session_id}")
-        generated_images = generation_service.generate_images(test_session, test_user_id)
-        # generated_images = [] # Uncomment to skip generation and test Eagle with dummy file
 
+        num_images_to_generate = 3 # Generate 3 images as per user instruction
+
+        for i in range(num_images_to_generate):
+            print(f"\nGenerating image {i + 1}/{num_images_to_generate} for session: {test_session_id}")
+            # Update seed for each generation
+            parameters_dict["seed"] = int(time.time()) + i # Ensure unique seed for each generation
+            test_base_parameters_json = json.dumps(parameters_dict)
+            test_session.baseParameters = test_base_parameters_json # Update session object with new parameters
+
+            # Generate a single image
+            generated_image_list = generation_service.generate_images(test_session, test_user_id)
+            if generated_image_list:
+                all_generated_images.extend(generated_image_list)
+                print(f"Generated image ID: {generated_image_list[0].imageID}")
+            else:
+                print(f"Error: Image generation failed for image {i + 1}.")
+                # Depending on requirements, might want to exit or handle this failure
+
+            time.sleep(1) # Add a small delay between generations to ensure unique timestamps for seeds
 
         print("\nImage Generation Process Completed.")
-        print(f"Number of images processed: {len(generated_images)}")
+        print(f"Total number of images processed: {len(all_generated_images)}")
 
-        # Verify generation results
-        if not generated_images:
-            print("Error: No images were generated.")
-            # Don't exit here, proceed to Eagle test if possible with a dummy file
-            # sys.exit(1)
-            pass # Allow script to continue even if generation failed, for Eagle test
-
+        # Verify generation results (optional, can be removed for final test script)
         print("\nVerifying generated images and DB records...")
-        for image in generated_images:
+        for image in all_generated_images:
             print(f"  Verifying image ID: {image.imageID}")
             print(f"    Image Path: {image.imagePath}")
             print(f"    Seed: {image.seed}")
             print(f"    Status: {image.generationStatus}")
-
-            # TODO: Add verification for DB records (e.g., using neo4j_repo.get_session and get_generated_image if implemented)
-            # For now, manual verification in Neo4j Browser is expected as per MVP plan.
             print(f"    Verify DB record for image {image.imageID} and session {test_session_id} manually in Neo4j Browser.")
 
         print("\nGenerationService test finished.")
@@ -194,91 +203,92 @@ def main():
         # --- Test EvaluationService and Eagle Integration (Full) ---
         print("\n--- Testing EvaluationService and Eagle Integration (Full) ---")
 
-        if generated_images:
-            # Take the first generated image for evaluation test
-            image_to_evaluate = generated_images[0]
-            test_rating = 5 # Set a test rating
+        if len(all_generated_images) >= 1:
+            # Use the first generated image for Full test
+            image_to_evaluate_full = all_generated_images[0]
+            test_rating_full = 5 # Set a test rating
 
-            print(f"\nEvaluating image {image_to_evaluate.imageID} with rating {test_rating} and sending to Eagle (Full process)...")
+            print(f"\nEvaluating image {image_to_evaluate_full.imageID} with rating {test_rating_full} and sending to Eagle (Full process)...")
 
             # Call the evaluation service and check the result tuple
-            success, error_message = evaluation_service.evaluate_and_send_to_eagle(image_to_evaluate, test_rating)
+            success_full, error_message_full = evaluation_service.evaluate_and_send_to_eagle(image_to_evaluate_full, test_rating_full)
 
-            if success:
+            if success_full:
                 print("\nEvaluation and Eagle send (Full process) completed SUCCESSFULLY.")
-                print(f"Please verify in Eagle that the image '{os.path.basename(image_to_evaluate.imagePath)}' was added with:")
-                print(f"  - Rating: {test_rating} stars")
+                print(f"Please verify in Eagle that the image '{os.path.basename(image_to_evaluate_full.imagePath)}' was added with:")
+                print(f"  - Rating: {test_rating_full} stars")
                 print(f"  - Tags: Parameter tags (e.g., param:steps:28) and prompt keyword tags (e.g., keyword:1girl)")
                 print(f"  - Annotation: Contains details like Image ID, Seed, Prompt, Parameters, Rating, and Tags.")
                 print(f"\nManual verification in Eagle is required to confirm success for the FULL process.")
             else:
-                print(f"\nEvaluation and Eagle send (Full process) FAILED: {error_message}")
-                print("Proceeding to Minimal Eagle Integration test.")
-
+                print(f"\nEvaluation and Eagle send (Full process) FAILED: {error_message_full}")
+                print("Proceeding to Minimal Eagle Integration tests.")
 
         else:
-            print("\nSkipping Full EvaluationService and Eagle test as no images were generated.")
+            print("\nSkipping Full EvaluationService and Eagle test as not enough images were generated.")
 
         # --- Test Eagle Integration (Minimal - addFromPaths) ---
         print("\n--- Testing Eagle Integration (Minimal - addFromPaths) ---")
 
-        # Use a dummy path or the path of the generated image if available
-        minimal_test_path_paths = generated_images[0].imagePath if generated_images else os.path.join("data", "generated", "dummy_test_image_paths.png")
-        # Create a dummy file if it doesn't exist, for minimal test
-        if not os.path.exists(minimal_test_path_paths):
-             os.makedirs(os.path.dirname(minimal_test_path_paths), exist_ok=True)
-             with open(minimal_test_path_paths, "w") as f:
-                 f.write("dummy content for addFromPaths") # Create a minimal dummy file
+        if len(all_generated_images) >= 2:
+            # Use the second generated image for Minimal addFromPaths test
+            image_to_evaluate_minimal_paths = all_generated_images[1]
 
-        print(f"\nAttempting to add item to Eagle with minimal data (addFromPaths): {minimal_test_path_paths}")
+            print(f"\nAttempting to add item to Eagle with minimal data (addFromPaths): {image_to_evaluate_minimal_paths.imagePath}")
 
-        try:
-            # Call EagleClient directly with minimal data using addFromPaths
-            # Add dummy name for minimal test
-            minimal_eagle_result_paths = eagle_client.add_item_from_paths(paths=[minimal_test_path_paths], names=[os.path.basename(minimal_test_path_paths)])
+            try:
+                # Call EagleClient directly with minimal data using addFromPaths
+                minimal_eagle_result_paths = eagle_client.add_item_from_paths(
+                    paths=[image_to_evaluate_minimal_paths.imagePath],
+                    names=[os.path.basename(image_to_evaluate_minimal_paths.imagePath)] # Add name
+                )
 
-            print("\nMinimal Eagle send (addFromPaths) process completed.")
-            if minimal_eagle_result_paths and len(minimal_eagle_result_paths) > 0 and "id" in minimal_eagle_result_paths[0]:
-                 print(f"Successfully added item to Eagle with minimal data (addFromPaths). Eagle Item ID: {minimal_eagle_result_paths[0]['id']}")
-                 print(f"Please verify in Eagle that the image '{os.path.basename(minimal_test_path_paths)}' was added with NO tags, NO annotation, and 0 stars.")
-            else:
-                 print(f"Warning: Minimal Eagle send (addFromPaths) process did not return an item ID. Response: {minimal_eagle_result_paths}")
+                print("\nMinimal Eagle send (addFromPaths) process completed.")
+                if minimal_eagle_result_paths and len(minimal_eagle_result_paths) > 0 and "id" in minimal_eagle_result_paths[0]:
+                     print(f"Successfully added item to Eagle with minimal data (addFromPaths). Eagle Item ID: {minimal_eagle_result_paths[0]['id']}")
+                     print(f"Please verify in Eagle that the image '{os.path.basename(image_to_evaluate_minimal_paths.imagePath)}' was added with NO tags, NO annotation, and 0 stars.")
+                else:
+                     print(f"Warning: Minimal Eagle send (addFromPaths) process did not return an item ID. Response: {minimal_eagle_result_paths}")
 
-        except RuntimeError as e:
-            print(f"ERROR: Runtime error during minimal Eagle send (addFromPaths) process: {e}")
-        except Exception as e:
-            print(f"ERROR: An unexpected error occurred during minimal Eagle send (addFromPaths) process: {e}")
+            except RuntimeError as e:
+                print(f"ERROR: Runtime error during minimal Eagle send (addFromPaths) process: {e}")
+            except Exception as e:
+                print(f"ERROR: An unexpected error occurred during minimal Eagle send (addFromPaths) process: {e}")
+
+        else:
+             print("\nSkipping Minimal addFromPaths test as not enough images were generated.")
+
 
         # --- Test Eagle Integration (Minimal - addFromPath) ---
         print("\n--- Testing Eagle Integration (Minimal - addFromPath) ---")
 
-        # Use a dummy path or the path of the generated image if available
-        minimal_test_path_path = generated_images[0].imagePath if generated_images else os.path.join("data", "generated", "dummy_test_image_path.png")
-        # Create a dummy file if it doesn't exist, for minimal test
-        if not os.path.exists(minimal_test_path_path):
-             os.makedirs(os.path.dirname(minimal_test_path_path), exist_ok=True)
-             with open(minimal_test_path_path, "w") as f:
-                 f.write("dummy content for addFromPath") # Create a minimal dummy file
+        if len(all_generated_images) >= 3:
+            # Use the third generated image for Minimal addFromPath test
+            image_to_evaluate_minimal_path = all_generated_images[2]
 
-        print(f"\nAttempting to add item to Eagle with minimal data (addFromPath): {minimal_test_path_path}")
+            print(f"\nAttempting to add item to Eagle with minimal data (addFromPath): {image_to_evaluate_minimal_path.imagePath}")
 
-        try:
-            # Call EagleClient directly with minimal data using addFromPath
-            # Add dummy name for minimal test
-            minimal_eagle_result_path = eagle_client.add_item_from_path(path=minimal_test_path_path, name=os.path.basename(minimal_test_path_path))
+            try:
+                # Call EagleClient directly with minimal data using addFromPath
+                minimal_eagle_result_path = eagle_client.add_item_from_path(
+                    path=image_to_evaluate_minimal_path.imagePath,
+                    name=os.path.basename(image_to_evaluate_minimal_path.imagePath) # Add name
+                )
 
-            print("\nMinimal Eagle send (addFromPath) process completed.")
-            if minimal_eagle_result_path and "id" in minimal_eagle_result_path:
-                 print(f"Successfully added item to Eagle with minimal data (addFromPath). Eagle Item ID: {minimal_eagle_result_path['id']}")
-                 print(f"Please verify in Eagle that the image '{os.path.basename(minimal_test_path_path)}' was added with NO tags, NO annotation, and 0 stars.")
-            else:
-                 print(f"Warning: Minimal Eagle send (addFromPath) process did not return item data. Response: {minimal_eagle_result_path}")
+                print("\nMinimal Eagle send (addFromPath) process completed.")
+                if minimal_eagle_result_path and "id" in minimal_eagle_result_path:
+                     print(f"Successfully added item to Eagle with minimal data (addFromPath). Eagle Item ID: {minimal_eagle_result_path['id']}")
+                     print(f"Please verify in Eagle that the image '{os.path.basename(image_to_evaluate_minimal_path.imagePath)}' was added with NO tags, NO annotation, and 0 stars.")
+                else:
+                     print(f"Warning: Minimal Eagle send (addFromPath) process did not return item data. Response: {minimal_eagle_result_path}")
 
-        except RuntimeError as e:
-            print(f"ERROR: Runtime error during minimal Eagle send (addFromPath) process: {e}")
-        except Exception as e:
-            print(f"ERROR: An unexpected error occurred during minimal Eagle send (addFromPath) process: {e}")
+            except RuntimeError as e:
+                print(f"ERROR: Runtime error during minimal Eagle send (addFromPath) process: {e}")
+            except Exception as e:
+                print(f"ERROR: An unexpected error occurred during minimal Eagle send (addFromPath) process: {e}")
 
+        else:
+             print("\nSkipping Minimal addFromPath test as not enough images were generated.")
 
     except FileNotFoundError as e:
         print(f"File not found error: {e}")

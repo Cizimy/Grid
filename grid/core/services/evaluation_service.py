@@ -1,4 +1,5 @@
 import json
+import os # osモジュールをインポート
 from typing import List, Dict, Any, Optional, Tuple
 
 # from grid.config import settings # 後で実装する構造化ログをインポート
@@ -21,7 +22,7 @@ class EvaluationService:
     def evaluate_and_send_to_eagle(self, image: GeneratedImage, rating: int) -> Tuple[bool, Optional[str]]:
         """
         Sets the rating for a generated image, generates tags, sends it to Eagle,
-        and updates the database with the Eagle item ID.
+        updates the database with the Eagle item ID, and updates the rating in Eagle.
         Accepts the GeneratedImage object directly.
 
         Returns:
@@ -42,7 +43,7 @@ class EvaluationService:
             generated_tags = self._tagging_service.generate_and_add_tags(image)
             # logger.debug("Tags generated and added to DB", image_id=image.imageID, tags=generated_tags)
 
-            # 3. Prepare data for Eagle
+            # 3. Prepare data for Eagle (Add)
             # Use image.imagePath, image.rating, generated_tags, and other image properties for annotation
             # Need to get session ID from the image's relationship. This might require fetching the relationship
             # or ensuring the image object includes session ID. For MVP, let's assume image object has session_id attribute
@@ -59,38 +60,65 @@ class EvaluationService:
             if image.actualPromptNegative:
                 annotation_content += f"Negative Prompt: {image.actualPromptNegative}\n"
             # Removed detailed parameters from annotation for now
-            annotation_content += f"Rating: {image.rating}\n"
+            annotation_content += f"Rating: {image.rating}\n" # Include rating in annotation
             annotation_content += f"Tags: {', '.join(generated_tags)}\n" # Add generated tags to annotation
             # --- End Simplified Annotation Content ---
 
 
-            # 4. Send to Eagle
+            # 4. Send to Eagle (Add)
             # add_item_from_paths expects a list of paths, tags, annotation, star
             paths_to_send = [image.imagePath]
             tags_to_send = generated_tags # Send generated tags to Eagle
-            star_to_send = image.rating # Send rating to Eagle
+            annotation_to_send = annotation_content # Send annotation to Eagle
+            # star_to_send = image.rating # Star is NOT supported by addFromPaths
 
-            # logger.info("Sending image to Eagle", image_id=image.imageID, path=image.imagePath, rating=star_to_send, tags=tags_to_send)
-            eagle_result = self._eagle_client.add_item_from_paths(
+            # Use image ID as name for uniqueness in Eagle
+            image_name_in_eagle = f"{image.imageID}{os.path.splitext(image.imagePath)[1]}" # Use imageID and original extension
+
+            # logger.info("Sending image to Eagle (Add)", image_id=image.imageID, path=image.imagePath)
+            eagle_add_result = self._eagle_client.add_item_from_paths(
                 paths=paths_to_send,
+                names=[image_name_in_eagle], # Use unique name
                 tags=tags_to_send,
-                annotation=annotation_content,
-                star=star_to_send
+                annotation=annotation_to_send
+                # star=star_to_send # Star is NOT supported by addFromPaths
             )
 
-            # 5. Update DB with Eagle item ID
-            if eagle_result and len(eagle_result) > 0 and "id" in eagle_result[0]:
-                eagle_item_id = eagle_result[0]["id"]
+            eagle_item_id = None
+            # Check if the result is a list and has at least one element
+            if isinstance(eagle_add_result, list) and len(eagle_add_result) > 0:
+                # Assuming the first element of the list is the item ID string
+                eagle_item_id = eagle_add_result[0]
+                # logger.info("Image sent to Eagle (Add) successfully", image_id=image.imageID, eagle_item_id=eagle_item_id)
+                print(f"DEBUG: Image sent to Eagle (Add) successfully. Eagle Item ID: {eagle_item_id}")
+
+                # 5. Update DB with Eagle item ID
                 # TODO: Implement update_image_eagle_id method in Neo4jRepository
                 # This method would update the eagleItemID property of the GeneratedImage node.
                 # For now, let's add a print statement and a TODO.
-                print(f"DEBUG: Eagle Item ID received: {eagle_item_id}. TODO: Implement update_image_eagle_id in Neo4jRepository.")
+                print(f"DEBUG: TODO: Implement update_image_eagle_id in Neo4jRepository and save ID: {eagle_item_id}")
                 # self._neo4j_repo.update_image_eagle_id(image.imageID, eagle_item_id) # Placeholder call
-                # logger.info("Image sent to Eagle and DB update planned", image_id=image.imageID, eagle_item_id=eagle_item_id)
+                # logger.info("GeneratedImage node update planned with Eagle item ID", image_id=image.imageID, eagle_item_id=eagle_item_id)
+
+                # 6. Update rating in Eagle using the update API
+                try:
+                    # logger.info("Updating rating in Eagle", eagle_item_id=eagle_item_id, rating=image.rating)
+                    self._eagle_client.update_item(item_id=eagle_item_id, star=image.rating)
+                    # logger.info("Rating updated in Eagle successfully", eagle_item_id=eagle_item_id, rating=image.rating)
+                    print(f"DEBUG: Rating updated in Eagle successfully for item {eagle_item_id} to {image.rating} stars.")
+                except Exception as update_e:
+                    # logger.error("Failed to update rating in Eagle", eagle_item_id=eagle_item_id, rating=image.rating, error=update_e)
+                    print(f"ERROR: Failed to update rating in Eagle for item {eagle_item_id}: {update_e}")
+                    # Decide if this failure should cause the whole process to fail
+                    # For now, let's log and continue, but return False for the overall process
+                    return False, f"Failed to update rating in Eagle for item {eagle_item_id}: {update_e}"
+
+
             else:
-                # logger.warning("Failed to get Eagle item ID from response", image_id=image.imageID, response=eagle_result)
-                print(f"WARNING: Failed to get Eagle item ID for image {image.imageID}. Response: {eagle_result}")
-                pass # Handle case where Eagle ID is not returned
+                # logger.warning("Failed to get Eagle item ID from addFromPaths response", image_id=image.imageID, response=eagle_add_result)
+                print(f"WARNING: Failed to get Eagle item ID for image {image.imageID} from addFromPaths response. Response: {eagle_add_result}")
+                return False, f"Failed to add image to Eagle or get item ID for image {image.imageID}. Response: {eagle_add_result}"
+
 
             # logger.info("Evaluation and send to Eagle process completed for image", image_id=image.imageID)
             return True, None # Success
