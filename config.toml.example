@@ -5,12 +5,8 @@ default_ai_model = "nai-diffusion-4-full" # デフォルトで使用するAIモ�
 [api]
 eagle_api_host = "http://localhost:41595" # Eagle APIのホスト
 
-
-
 [database]
 neo4j_uri = "neo4j://localhost:7687" # Neo4j Bolt URI
-
-
 
 [paths]
 # データ保存先のベースディレクトリ (必要に応じて絶対パスに変更)

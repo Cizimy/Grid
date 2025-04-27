@@ -62,21 +62,21 @@ class GenerationService:
             # logger.info("Image generation API call completed", session_id=session.sessionID, num_images=len(generated_image_data))
 
             # 4. Process and save generated images
-            for filename, binary_data in generated_image_data:
+            for index, (filename, binary_data) in enumerate(generated_image_data): # Added index
                 image_id = str(uuid.uuid4()) # Generate UUID for the image
-                seed = 0 # TODO: Extract seed from parameters or API response metadata if available
-                actual_parameters: Dict[str, Any] = {} # TODO: Extract actual parameters used
+                seed = parameters.get("seed", 0) + index # Extract seed from parameters and add index for uniqueness if multiple images generated in one API call
+                actual_parameters: Dict[str, Any] = parameters # Use the parameters sent to API
                 actual_prompt_positive = prompt # Use the prompt sent to API
-                actual_prompt_negative = "" # TODO: Extract negative prompt if applicable
+                actual_prompt_negative = parameters.get("negative_prompt", "") # Extract negative prompt
 
-                # Determine save path (data/generated/YYYY/MM/DD/<session>/<seed>.png)
+                # Determine save path (data/generated/YYYY/MM/DD/<session>/<image_id>.png)
                 now = datetime.now()
-                # Use session ID and seed in the path
+                # Use session ID in the directory path
                 save_dir = os.path.join("data", "generated", str(now.year), f"{now.month:02d}", f"{now.day:02d}", session.sessionID)
                 os.makedirs(save_dir, exist_ok=True) # Create directories if they don't exist
 
-                # Use seed in the filename
-                image_file_name = f"{seed}.png" # Assuming PNG format
+                # Use image_id in the filename to ensure uniqueness
+                image_file_name = f"{image_id}.png" # Use image_id for unique filename
                 image_path = os.path.join(save_dir, image_file_name)
 
                 try:
@@ -88,7 +88,7 @@ class GenerationService:
                     image_model = GeneratedImage(
                         imageID=image_id,
                         imagePath=image_path,
-                        seed=seed,
+                        seed=seed, # Use the potentially adjusted seed
                         actualParameters=actual_parameters,
                         actualPromptPositive=actual_prompt_positive,
                         actualPromptNegative=actual_prompt_negative,
