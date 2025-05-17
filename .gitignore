@@ -27,6 +27,5 @@ Thumbs.db
 # Ignore tool-specific directories
 .roo/
 # Ignore development specific directories
-docs/
 resources/
 config.toml
