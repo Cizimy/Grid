@@ -17,6 +17,15 @@ pillow = "^10.3.0" # バージョンは適宜調整
 requests = "^2.31.0" # バージョンは適宜調整
 python-dotenv = "^1.0.0" # バージョンは適宜調整
 novelai-api = "*" # NovelAI APIラッパーライブラリを追加 (バージョン指定を緩やかに)
+beautifulsoup4 = "^4.12.3"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.2"
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]
 
 [build-system]
 requires = ["poetry-core"]
